@@ -17,7 +17,9 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.ItemID;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
@@ -37,6 +39,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 	private static final Pattern COOLDOWN_SECONDS_PATTERN = Pattern.compile("(\\d+)\\s+seconds?");
 	private static final int PENDING_FLASK_CLICK_TICKS = 5;
 	private static final int FLASK_EXPLOSION_TICKS = 4;
+	private static final int MAX_REASONABLE_COOLDOWN_TICKS = FlaskCooldownState.DEFAULT_FULL_COOLDOWN_TICKS + 10;
 
 	private static final Set<Integer> FLASK_ITEM_IDS = Set.of(
 		ItemID.LEAGUE_FLASK_OF_FERVOUR,
@@ -66,6 +69,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 	private final FlaskCooldownState cooldownState = new FlaskCooldownState();
 	private int pendingFlaskClickTick = -1;
 	private int lastFlaskUseTick = -1;
+	private boolean cooldownVarpSeen;
 
 	@Provides
 	TickCooldownTrackerConfig provideConfig(ConfigManager configManager)
@@ -78,6 +82,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 	{
 		overlayManager.add(overlay);
 		overlayManager.add(itemOverlay);
+		syncCooldownFromVarps();
 	}
 
 	@Override
@@ -88,6 +93,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 		cooldownState.reset();
 		pendingFlaskClickTick = -1;
 		lastFlaskUseTick = -1;
+		cooldownVarpSeen = false;
 	}
 
 	@Subscribe
@@ -97,16 +103,19 @@ public class TickCooldownTrackerPlugin extends Plugin
 		if (gameState == GameState.LOGIN_SCREEN || gameState == GameState.HOPPING)
 		{
 			cooldownState.reset();
+			cooldownVarpSeen = false;
 		}
 		else if (gameState == GameState.LOGGED_IN)
 		{
 			pendingFlaskClickTick = -1;
+			syncCooldownFromVarps();
 		}
 	}
 
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
+		syncCooldownFromVarps();
 		cooldownState.advanceTo(client.getTickCount());
 		if (pendingFlaskClickTick >= 0 && client.getTickCount() - pendingFlaskClickTick > PENDING_FLASK_CLICK_TICKS)
 		{
@@ -115,9 +124,19 @@ public class TickCooldownTrackerPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onVarbitChanged(VarbitChanged event)
+	{
+		int varpId = event.getVarpId();
+		if (varpId == VarPlayerID.LEAGUE_RELIC_FLASK_OF_FERVOUR_COOLDOWN || varpId == VarPlayerID.MAP_CLOCK)
+		{
+			syncCooldownFromVarps();
+		}
+	}
+
+	@Subscribe
 	public void onHitsplatApplied(HitsplatApplied event)
 	{
-		if (!cooldownState.isActive() || event.getActor() == client.getLocalPlayer())
+		if (cooldownVarpSeen || !cooldownState.isActive() || event.getActor() == client.getLocalPlayer())
 		{
 			return;
 		}
@@ -146,6 +165,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 			return;
 		}
 
+		syncCooldownFromVarps();
 		boolean activeBeforeClick = cooldownState.isActive();
 		pendingFlaskClickTick = client.getTickCount();
 		if (!activeBeforeClick)
@@ -170,7 +190,10 @@ public class TickCooldownTrackerPlugin extends Plugin
 			return;
 		}
 
-		cooldownState.setCooldownTicks(secondsToTicks(seconds), client.getTickCount());
+		if (!syncCooldownFromVarps())
+		{
+			cooldownState.setCooldownTicks(secondsToTicks(seconds), client.getTickCount());
+		}
 		pendingFlaskClickTick = -1;
 		lastFlaskUseTick = -1;
 	}
@@ -215,6 +238,61 @@ public class TickCooldownTrackerPlugin extends Plugin
 	double getCooldownRatio()
 	{
 		return cooldownState.getCooldownRatio();
+	}
+
+	private boolean syncCooldownFromVarps()
+	{
+		if (client.getGameState() != GameState.LOGGED_IN)
+		{
+			return false;
+		}
+
+		int cooldownEndTick = client.getVarpValue(VarPlayerID.LEAGUE_RELIC_FLASK_OF_FERVOUR_COOLDOWN);
+		if (cooldownEndTick <= 0)
+		{
+			if (cooldownVarpSeen && !isWaitingForActivationVarp())
+			{
+				cooldownState.setCooldownTicks(0, client.getTickCount());
+				pendingFlaskClickTick = -1;
+			}
+			return cooldownVarpSeen;
+		}
+
+		int mapClock = client.getVarpValue(VarPlayerID.MAP_CLOCK);
+		if (mapClock <= 0)
+		{
+			return false;
+		}
+
+		int remainingTicks = decodeCooldownTicks(cooldownEndTick, mapClock);
+		if (remainingTicks > MAX_REASONABLE_COOLDOWN_TICKS)
+		{
+			return false;
+		}
+
+		cooldownVarpSeen = true;
+		if (remainingTicks <= 0 && isWaitingForActivationVarp())
+		{
+			return true;
+		}
+
+		cooldownState.setCooldownTicks(remainingTicks, client.getTickCount());
+		pendingFlaskClickTick = -1;
+		if (remainingTicks > 0)
+		{
+			lastFlaskUseTick = -1;
+		}
+		return true;
+	}
+
+	static int decodeCooldownTicks(int cooldownEndTick, int mapClock)
+	{
+		return Math.max(0, cooldownEndTick - mapClock);
+	}
+
+	private boolean isWaitingForActivationVarp()
+	{
+		return lastFlaskUseTick >= 0 && client.getTickCount() - lastFlaskUseTick <= PENDING_FLASK_CLICK_TICKS;
 	}
 
 	private boolean isFlaskActivation(MenuOptionClicked event)

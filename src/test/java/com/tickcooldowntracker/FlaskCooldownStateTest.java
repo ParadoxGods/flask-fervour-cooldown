@@ -85,6 +85,26 @@ public class FlaskCooldownStateTest
 	}
 
 	@Test
+	public void doesNotRefreshReadyWindowWhenAlreadyReady()
+	{
+		FlaskCooldownState state = new FlaskCooldownState();
+
+		state.setCooldownTicks(1, 10);
+		state.advanceTo(11);
+		state.setCooldownTicks(0, 15);
+
+		assertFalse(state.isRecentlyReady(16, 5));
+	}
+
+	@Test
+	public void decodesAbsoluteCooldownEndTickFromMapClock()
+	{
+		assertEquals(27, TickCooldownTrackerPlugin.decodeCooldownTicks(253627, 253600));
+		assertEquals(0, TickCooldownTrackerPlugin.decodeCooldownTicks(253600, 253600));
+		assertEquals(0, TickCooldownTrackerPlugin.decodeCooldownTicks(253500, 253600));
+	}
+
+	@Test
 	public void keepsProgressRatioBounded()
 	{
 		FlaskCooldownState state = new FlaskCooldownState();

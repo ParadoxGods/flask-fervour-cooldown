@@ -22,9 +22,17 @@ final class FlaskCooldownState
 	void setCooldownTicks(int remainingTicks, int currentTick)
 	{
 		advanceTo(currentTick);
+		boolean wasActive = cooldownTicks > 0;
 		cooldownTicks = Math.max(0, remainingTicks);
 		highestObservedCooldownTicks = Math.max(highestObservedCooldownTicks, cooldownTicks);
-		readySinceTick = cooldownTicks == 0 ? currentTick : -1;
+		if (cooldownTicks > 0)
+		{
+			readySinceTick = -1;
+		}
+		else if (wasActive && readySinceTick < 0)
+		{
+			readySinceTick = currentTick;
+		}
 	}
 
 	void reset()
