@@ -5,8 +5,10 @@ import java.util.Set;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.Hitsplat;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarPlayerID;
@@ -26,7 +28,9 @@ public class TickCooldownTrackerPlugin extends Plugin
 {
 	private static final Set<Integer> FLASK_ITEM_IDS = Set.of(
 		ItemID.LEAGUE_FLASK_OF_FERVOUR,
-		ItemID.LEAGUE_FLASK_OF_FERVOUR_EMPTY
+		ItemID.LEAGUE_FLASK_OF_FERVOUR_EMPTY,
+		33240,
+		33242
 	);
 
 	@Inject
@@ -48,6 +52,8 @@ public class TickCooldownTrackerPlugin extends Plugin
 	private TickCooldownItemOverlay itemOverlay;
 
 	private final FlaskCooldownState cooldownState = new FlaskCooldownState();
+	private int lastDamage;
+	private int lastDamageReductionTicks;
 
 	@Provides
 	TickCooldownTrackerConfig provideConfig(ConfigManager configManager)
@@ -69,6 +75,8 @@ public class TickCooldownTrackerPlugin extends Plugin
 		overlayManager.remove(overlay);
 		overlayManager.remove(itemOverlay);
 		cooldownState.reset();
+		lastDamage = 0;
+		lastDamageReductionTicks = 0;
 	}
 
 	@Subscribe
@@ -96,7 +104,30 @@ public class TickCooldownTrackerPlugin extends Plugin
 	{
 		if (event.getVarpId() == VarPlayerID.LEAGUE_RELIC_FLASK_OF_FERVOUR_COOLDOWN)
 		{
-			cooldownState.sync(event.getValue(), client.getTickCount());
+			syncCooldown(event.getValue());
+		}
+	}
+
+	@Subscribe
+	public void onHitsplatApplied(HitsplatApplied event)
+	{
+		if (!cooldownState.isActive() || event.getActor() == client.getLocalPlayer())
+		{
+			return;
+		}
+
+		Hitsplat hitsplat = event.getHitsplat();
+		if (!hitsplat.isMine())
+		{
+			return;
+		}
+
+		int damage = hitsplat.getAmount();
+		int reductionTicks = cooldownState.reduceFromDamage(damage, client.getTickCount());
+		if (reductionTicks > 0)
+		{
+			lastDamage = damage;
+			lastDamageReductionTicks = reductionTicks;
 		}
 	}
 
@@ -137,6 +168,26 @@ public class TickCooldownTrackerPlugin extends Plugin
 		return cooldownState.getCooldownTicks();
 	}
 
+	int getRawCooldownValue()
+	{
+		return cooldownState.getRawValue();
+	}
+
+	String getCooldownModeLabel()
+	{
+		return cooldownState.getModeLabel();
+	}
+
+	int getLastDamage()
+	{
+		return lastDamage;
+	}
+
+	int getLastDamageReductionTicks()
+	{
+		return lastDamageReductionTicks;
+	}
+
 	double getCooldownRatio()
 	{
 		return cooldownState.getCooldownRatio();
@@ -149,9 +200,11 @@ public class TickCooldownTrackerPlugin extends Plugin
 			return;
 		}
 
-		cooldownState.sync(
-			client.getVarpValue(VarPlayerID.LEAGUE_RELIC_FLASK_OF_FERVOUR_COOLDOWN),
-			client.getTickCount()
-		);
+		syncCooldown(client.getVarpValue(VarPlayerID.LEAGUE_RELIC_FLASK_OF_FERVOUR_COOLDOWN));
+	}
+
+	private void syncCooldown(int rawCooldownValue)
+	{
+		cooldownState.sync(rawCooldownValue, client.getTickCount(), config.cooldownValueMode());
 	}
 }

@@ -13,6 +13,14 @@ public interface TickCooldownTrackerConfig extends Config
 {
 	String GROUP = "tickcooldowntracker";
 
+	enum CooldownValueMode
+	{
+		AUTO,
+		TICKS,
+		SECONDS,
+		END_TICK
+	}
+
 	@ConfigSection(
 		name = "Flask cooldown",
 		description = "Flask of Fervour cooldown tracking.",
@@ -34,17 +42,41 @@ public interface TickCooldownTrackerConfig extends Config
 	)
 	String itemSection = "itemSection";
 
+	@ConfigItem(
+		keyName = "cooldownValueMode",
+		name = "Cooldown value mode",
+		description = "How the client cooldown value should be interpreted. Auto should work from a fresh flask use; use Debug raw value if this looks wrong.",
+		position = 0,
+		section = cooldownSection
+	)
+	default CooldownValueMode cooldownValueMode()
+	{
+		return CooldownValueMode.AUTO;
+	}
+
 	@Range(max = 100)
 	@ConfigItem(
 		keyName = "readyVisibleTicks",
 		name = "Panel ready ticks",
 		description = "How many game ticks to keep showing READY in the panel after the cooldown reaches zero.",
-		position = 0,
+		position = 1,
 		section = cooldownSection
 	)
 	default int readyVisibleTicks()
 	{
 		return 5;
+	}
+
+	@ConfigItem(
+		keyName = "showDebugRawValue",
+		name = "Debug raw value",
+		description = "Show the raw Flask cooldown varp and detected conversion mode in the panel.",
+		position = 2,
+		section = cooldownSection
+	)
+	default boolean showDebugRawValue()
+	{
+		return true;
 	}
 
 	@ConfigItem(
