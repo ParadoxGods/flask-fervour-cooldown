@@ -45,7 +45,7 @@ public interface TickCooldownTrackerConfig extends Config
 	@ConfigItem(
 		keyName = "cooldownValueMode",
 		name = "Cooldown value mode",
-		description = "How the client cooldown value should be interpreted. Auto should work from a fresh flask use; use Debug raw value if this looks wrong.",
+		description = "How the client cooldown value should be interpreted. Auto should work from a fresh flask use.",
 		position = 0,
 		section = cooldownSection
 	)
@@ -65,18 +65,6 @@ public interface TickCooldownTrackerConfig extends Config
 	default int readyVisibleTicks()
 	{
 		return 5;
-	}
-
-	@ConfigItem(
-		keyName = "showDebugRawValue",
-		name = "Debug raw value",
-		description = "Show the raw Flask cooldown varp and detected conversion mode in the panel.",
-		position = 2,
-		section = cooldownSection
-	)
-	default boolean showDebugRawValue()
-	{
-		return false;
 	}
 
 	@ConfigItem(

@@ -52,8 +52,6 @@ public class TickCooldownTrackerPlugin extends Plugin
 	private TickCooldownItemOverlay itemOverlay;
 
 	private final FlaskCooldownState cooldownState = new FlaskCooldownState();
-	private int lastDamage;
-	private int lastDamageReductionTicks;
 
 	@Provides
 	TickCooldownTrackerConfig provideConfig(ConfigManager configManager)
@@ -75,8 +73,6 @@ public class TickCooldownTrackerPlugin extends Plugin
 		overlayManager.remove(overlay);
 		overlayManager.remove(itemOverlay);
 		cooldownState.reset();
-		lastDamage = 0;
-		lastDamageReductionTicks = 0;
 	}
 
 	@Subscribe
@@ -123,12 +119,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 		}
 
 		int damage = hitsplat.getAmount();
-		int reductionTicks = cooldownState.reduceFromDamage(damage, client.getTickCount());
-		if (reductionTicks > 0)
-		{
-			lastDamage = damage;
-			lastDamageReductionTicks = reductionTicks;
-		}
+		cooldownState.reduceFromDamage(damage, client.getTickCount());
 	}
 
 	boolean isFlaskItem(int itemId)
@@ -166,26 +157,6 @@ public class TickCooldownTrackerPlugin extends Plugin
 	int getCooldownTicks()
 	{
 		return cooldownState.getCooldownTicks();
-	}
-
-	int getRawCooldownValue()
-	{
-		return cooldownState.getRawValue();
-	}
-
-	String getCooldownModeLabel()
-	{
-		return cooldownState.getModeLabel();
-	}
-
-	int getLastDamage()
-	{
-		return lastDamage;
-	}
-
-	int getLastDamageReductionTicks()
-	{
-		return lastDamageReductionTicks;
 	}
 
 	double getCooldownRatio()

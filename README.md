@@ -9,7 +9,6 @@ Features:
 - Reduces the predicted cooldown immediately from your outgoing hitsplats: `damage / 10` ticks
 - Draws cooldown tick text and shading over Flask of Fervour and the empty flask variant
 - Highlights the flask when the cooldown reaches zero
-- Includes a temporary raw varp/mode debug line to validate the client cooldown value during testing
 
 Development:
 - Requires a JDK. If Gradle finds a JRE first, set `JAVA_HOME` to a JDK before building.

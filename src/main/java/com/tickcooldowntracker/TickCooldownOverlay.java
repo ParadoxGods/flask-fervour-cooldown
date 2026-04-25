@@ -50,21 +50,6 @@ class TickCooldownOverlay extends OverlayPanel
 			.rightColor(active ? Color.WHITE : config.readyColor().brighter())
 			.build());
 
-		if (config.showDebugRawValue())
-		{
-			panelComponent.getChildren().add(LineComponent.builder()
-				.left("Raw")
-				.right(plugin.getRawCooldownValue() + " / " + plugin.getCooldownModeLabel())
-				.rightColor(Color.LIGHT_GRAY)
-				.build());
-
-			panelComponent.getChildren().add(LineComponent.builder()
-				.left("Last hit")
-				.right(plugin.getLastDamage() + " -> -" + plugin.getLastDamageReductionTicks() + "t")
-				.rightColor(Color.LIGHT_GRAY)
-				.build());
-		}
-
 		return super.render(graphics);
 	}
 }
