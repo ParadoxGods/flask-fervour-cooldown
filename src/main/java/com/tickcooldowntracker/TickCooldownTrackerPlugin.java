@@ -146,7 +146,10 @@ public class TickCooldownTrackerPlugin extends Plugin
 
 		pendingFlaskClickTick = client.getTickCount();
 		lastFlaskUseTick = client.getTickCount();
-		cooldownState.startCooldown(client.getTickCount());
+		if (!cooldownState.isActive())
+		{
+			cooldownState.startCooldownOnNextTick(client.getTickCount());
+		}
 	}
 
 	@Subscribe

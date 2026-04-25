@@ -20,6 +20,19 @@ public class FlaskCooldownStateTest
 	}
 
 	@Test
+	public void startsFullCooldownFromNextServerTick()
+	{
+		FlaskCooldownState state = new FlaskCooldownState();
+
+		state.startCooldownOnNextTick(10);
+		state.advanceTo(11);
+
+		assertEquals(300, state.getCooldownTicks());
+		state.advanceTo(12);
+		assertEquals(299, state.getCooldownTicks());
+	}
+
+	@Test
 	public void advancesLocalCountdownBetweenRawUpdates()
 	{
 		FlaskCooldownState state = new FlaskCooldownState();

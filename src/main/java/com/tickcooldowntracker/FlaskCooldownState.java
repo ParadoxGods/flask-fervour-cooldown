@@ -14,6 +14,11 @@ final class FlaskCooldownState
 		setCooldownTicks(DEFAULT_FULL_COOLDOWN_TICKS, currentTick);
 	}
 
+	void startCooldownOnNextTick(int currentTick)
+	{
+		setCooldownTicks(DEFAULT_FULL_COOLDOWN_TICKS, currentTick + 1);
+	}
+
 	void setCooldownTicks(int remainingTicks, int currentTick)
 	{
 		advanceTo(currentTick);
