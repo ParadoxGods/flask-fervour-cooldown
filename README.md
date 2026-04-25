@@ -1,16 +1,15 @@
 # Flask Fervour Cooldown
 
-RuneLite external plugin for tracking the Leagues 6 Flask of Fervour cooldown by exact game tick.
+Shows the Leagues 6 Flask of Fervour cooldown in game ticks and highlights the flask when it is ready.
 
 Features:
-- Starts a 300 tick cooldown when you activate Flask of Fervour
-- Calibrates from the in-game cooldown message when the flask reports remaining seconds
-- Shows exact cooldown ticks remaining in a movable RuneLite overlay panel
-- Reduces the predicted cooldown immediately from your outgoing hitsplats: `damage / 10` ticks
-- Draws cooldown tick text and shading over Flask of Fervour and the empty flask variant
+- Starts tracking when you activate Flask of Fervour
+- Calibrates from the in-game cooldown message if you try to use the flask while it is still cooling down
+- Reduces the timer from your damage and thorn/reflect hits at `damage / 10` ticks
+- Shows a movable overlay with the remaining tick count
+- Draws tick text, cooldown shading, and a progress bar over the flask in your inventory or equipment
 - Highlights the flask when the cooldown reaches zero
 
-Development:
-- Requires a JDK. If Gradle finds a JRE first, set `JAVA_HOME` to a JDK before building.
-- Run `./gradlew run` to launch RuneLite with the plugin loaded
-- Run `./gradlew test` to execute the unit tests
+Notes:
+- This plugin is only for the Leagues 6 Flask of Fervour.
+- It does not add a sidebar panel.
