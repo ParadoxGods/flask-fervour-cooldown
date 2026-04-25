@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import net.runelite.api.Actor;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
@@ -121,13 +122,14 @@ public class TickCooldownTrackerPlugin extends Plugin
 			return;
 		}
 
+		Actor actor = event.getActor();
 		Hitsplat hitsplat = event.getHitsplat();
-		if (!hitsplat.isMine())
+		int damage = hitsplat.getAmount();
+		if (!isCooldownReducingDamage(actor, hitsplat, damage))
 		{
 			return;
 		}
 
-		int damage = hitsplat.getAmount();
 		if (isLikelyOwnFlaskExplosion(damage))
 		{
 			return;
@@ -144,10 +146,11 @@ public class TickCooldownTrackerPlugin extends Plugin
 			return;
 		}
 
+		boolean activeBeforeClick = cooldownState.isActive();
 		pendingFlaskClickTick = client.getTickCount();
-		lastFlaskUseTick = client.getTickCount();
-		if (!cooldownState.isActive())
+		if (!activeBeforeClick)
 		{
+			lastFlaskUseTick = client.getTickCount();
 			cooldownState.startCooldownOnNextTick(client.getTickCount());
 		}
 	}
@@ -227,6 +230,23 @@ public class TickCooldownTrackerPlugin extends Plugin
 			|| option.contains("activate")
 			|| option.contains("use")
 			|| option.contains("consume");
+	}
+
+	private boolean isCooldownReducingDamage(Actor actor, Hitsplat hitsplat, int damage)
+	{
+		if (damage <= 0)
+		{
+			return false;
+		}
+
+		if (hitsplat.isMine())
+		{
+			return true;
+		}
+
+		// Thorn/reflect damage may not be flagged as "mine", but it is applied to
+		// the NPC currently attacking the local player and still reduces the flask.
+		return hitsplat.isOthers() && actor.getInteracting() == client.getLocalPlayer();
 	}
 
 	private boolean isLikelyOwnFlaskExplosion(int damage)
