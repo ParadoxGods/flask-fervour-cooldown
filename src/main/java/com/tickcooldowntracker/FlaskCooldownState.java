@@ -3,8 +3,7 @@ package com.tickcooldowntracker;
 final class FlaskCooldownState
 {
 	static final int DEFAULT_FULL_COOLDOWN_TICKS = 300;
-	private static final int PACKED_COOLDOWN_FLAG = 0x8000;
-	private static final int PACKED_COOLDOWN_MASK = 0x7fff;
+	private static final int PACKED_SECONDS_MASK = 0xff;
 	private static final int MAX_REASONABLE_COOLDOWN_TICKS = 1200;
 
 	private int cooldownTicks;
@@ -20,10 +19,11 @@ final class FlaskCooldownState
 		advanceTo(currentTick);
 
 		int updatedRawValue = Math.max(0, varpValue);
+		boolean packedValue = isPackedRawValue(updatedRawValue);
 		int decodedValue = decodeRawCooldownValue(updatedRawValue);
 		if (decodedValue > 0)
 		{
-			TickCooldownTrackerConfig.CooldownValueMode mode = resolveMode(decodedValue, currentTick, configuredMode);
+			TickCooldownTrackerConfig.CooldownValueMode mode = resolveMode(decodedValue, currentTick, configuredMode, packedValue);
 			int updatedCooldownTicks = convertToTicks(decodedValue, currentTick, mode);
 			if (updatedRawValue != rawValue || updatedCooldownTicks < cooldownTicks || cooldownTicks == 0)
 			{
@@ -124,12 +124,19 @@ final class FlaskCooldownState
 	private TickCooldownTrackerConfig.CooldownValueMode resolveMode(
 		int updatedRawValue,
 		int currentTick,
-		TickCooldownTrackerConfig.CooldownValueMode configuredMode)
+		TickCooldownTrackerConfig.CooldownValueMode configuredMode,
+		boolean packedValue)
 	{
 		if (configuredMode != TickCooldownTrackerConfig.CooldownValueMode.AUTO)
 		{
 			resolvedMode = configuredMode;
 			return configuredMode;
+		}
+
+		if (packedValue)
+		{
+			resolvedMode = TickCooldownTrackerConfig.CooldownValueMode.SECONDS;
+			return resolvedMode;
 		}
 
 		if (resolvedMode != null)
@@ -170,11 +177,11 @@ final class FlaskCooldownState
 
 	private static int decodeRawCooldownValue(int value)
 	{
-		return isPackedRawValue(value) ? value & PACKED_COOLDOWN_MASK : value;
+		return isPackedRawValue(value) ? value & PACKED_SECONDS_MASK : value;
 	}
 
 	private static boolean isPackedRawValue(int value)
 	{
-		return (value & PACKED_COOLDOWN_FLAG) != 0;
+		return value > MAX_REASONABLE_COOLDOWN_TICKS;
 	}
 }

@@ -77,6 +77,18 @@ public class FlaskCooldownStateTest
 	}
 
 	@Test
+	public void decodesLargePackedReusableItemValueAsSeconds()
+	{
+		FlaskCooldownState state = new FlaskCooldownState();
+
+		state.sync(253600, 10, TickCooldownTrackerConfig.CooldownValueMode.AUTO);
+
+		assertTrue(state.isActive());
+		assertEquals(267, state.getCooldownTicks());
+		assertEquals("seconds+packed", state.getModeLabel());
+	}
+
+	@Test
 	public void keepsProgressRatioBounded()
 	{
 		FlaskCooldownState state = new FlaskCooldownState();
