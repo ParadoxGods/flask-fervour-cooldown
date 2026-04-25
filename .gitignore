@@ -1,0 +1,15 @@
+.gradle
+build
+.idea/
+.project
+.settings/
+.classpath
+nbactions.xml
+nb-configuration.xml
+nbproject/
+*.log
+artifacts/
+planner-*.js
+planner-page.html
+upstream-plugin-hub/
+upstream-runelite/
