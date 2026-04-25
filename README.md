@@ -4,6 +4,7 @@ RuneLite external plugin for tracking the Leagues 6 Flask of Fervour cooldown by
 
 Features:
 - Reads RuneLite's `LEAGUE_RELIC_FLASK_OF_FERVOUR_COOLDOWN` varp instead of guessing from clicks
+- Decodes the packed `0x8000` cooldown flag so ready state does not display as `32k` ticks
 - Shows exact cooldown ticks remaining in a movable RuneLite overlay panel
 - Reduces the predicted cooldown immediately from your outgoing hitsplats: `damage / 10` ticks
 - Draws cooldown tick text and shading over Flask of Fervour and the empty flask variant

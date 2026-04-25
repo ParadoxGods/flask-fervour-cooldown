@@ -76,7 +76,7 @@ public interface TickCooldownTrackerConfig extends Config
 	)
 	default boolean showDebugRawValue()
 	{
-		return true;
+		return false;
 	}
 
 	@ConfigItem(

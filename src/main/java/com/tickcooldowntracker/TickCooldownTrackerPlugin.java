@@ -155,7 +155,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 
 	boolean shouldShowReadyPanel()
 	{
-		return cooldownState.isRecentlyReady(client.getTickCount(), config.readyVisibleTicks());
+		return cooldownState.isReady() || cooldownState.isRecentlyReady(client.getTickCount(), config.readyVisibleTicks());
 	}
 
 	boolean shouldShowReadyItem()

@@ -3,6 +3,8 @@ package com.tickcooldowntracker;
 final class FlaskCooldownState
 {
 	static final int DEFAULT_FULL_COOLDOWN_TICKS = 300;
+	private static final int PACKED_COOLDOWN_FLAG = 0x8000;
+	private static final int PACKED_COOLDOWN_MASK = 0x7fff;
 	private static final int MAX_REASONABLE_COOLDOWN_TICKS = 1200;
 
 	private int cooldownTicks;
@@ -18,10 +20,11 @@ final class FlaskCooldownState
 		advanceTo(currentTick);
 
 		int updatedRawValue = Math.max(0, varpValue);
-		if (updatedRawValue > 0)
+		int decodedValue = decodeRawCooldownValue(updatedRawValue);
+		if (decodedValue > 0)
 		{
-			TickCooldownTrackerConfig.CooldownValueMode mode = resolveMode(updatedRawValue, currentTick, configuredMode);
-			int updatedCooldownTicks = convertToTicks(updatedRawValue, currentTick, mode);
+			TickCooldownTrackerConfig.CooldownValueMode mode = resolveMode(decodedValue, currentTick, configuredMode);
+			int updatedCooldownTicks = convertToTicks(decodedValue, currentTick, mode);
 			if (updatedRawValue != rawValue || updatedCooldownTicks < cooldownTicks || cooldownTicks == 0)
 			{
 				cooldownTicks = updatedCooldownTicks;
@@ -95,7 +98,8 @@ final class FlaskCooldownState
 
 	String getModeLabel()
 	{
-		return resolvedMode == null ? "unknown" : resolvedMode.name().toLowerCase();
+		String modeLabel = resolvedMode == null ? "unknown" : resolvedMode.name().toLowerCase();
+		return isPackedRawValue(rawValue) ? modeLabel + "+packed" : modeLabel;
 	}
 
 	double getCooldownRatio()
@@ -162,5 +166,15 @@ final class FlaskCooldownState
 			default:
 				return updatedRawValue;
 		}
+	}
+
+	private static int decodeRawCooldownValue(int value)
+	{
+		return isPackedRawValue(value) ? value & PACKED_COOLDOWN_MASK : value;
+	}
+
+	private static boolean isPackedRawValue(int value)
+	{
+		return (value & PACKED_COOLDOWN_FLAG) != 0;
 	}
 }

@@ -62,6 +62,21 @@ public class FlaskCooldownStateTest
 	}
 
 	@Test
+	public void decodesPackedHighBitFlagAsCooldownMetadata()
+	{
+		FlaskCooldownState state = new FlaskCooldownState();
+
+		state.sync(32768, 10, TickCooldownTrackerConfig.CooldownValueMode.TICKS);
+		assertFalse(state.isActive());
+		assertTrue(state.isReady());
+		assertEquals(0, state.getCooldownTicks());
+
+		state.sync(32768 + 180, 11, TickCooldownTrackerConfig.CooldownValueMode.TICKS);
+		assertTrue(state.isActive());
+		assertEquals(180, state.getCooldownTicks());
+	}
+
+	@Test
 	public void keepsProgressRatioBounded()
 	{
 		FlaskCooldownState state = new FlaskCooldownState();
