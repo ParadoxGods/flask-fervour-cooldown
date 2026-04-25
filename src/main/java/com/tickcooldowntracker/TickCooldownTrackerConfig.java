@@ -14,8 +14,8 @@ public interface TickCooldownTrackerConfig extends Config
 	String GROUP = "tickcooldowntracker";
 
 	@ConfigSection(
-		name = "Cooldowns",
-		description = "Item cooldown definitions and click tracking.",
+		name = "Flask cooldown",
+		description = "Flask of Fervour cooldown tracking.",
 		position = 0
 	)
 	String cooldownSection = "cooldownSection";
@@ -34,60 +34,12 @@ public interface TickCooldownTrackerConfig extends Config
 	)
 	String itemSection = "itemSection";
 
-	@ConfigItem(
-		keyName = "cooldownDefinitions",
-		name = "Cooldown definitions",
-		description = "Use 'item id or exact item name: ticks'. Separate entries with new lines, commas, or semicolons.",
-		position = 0,
-		section = cooldownSection
-	)
-	default String cooldownDefinitions()
-	{
-		return "";
-	}
-
-	@ConfigItem(
-		keyName = "trackedActions",
-		name = "Tracked actions",
-		description = "Optional comma-separated item action names. Leave blank to track every item operation except Use and Examine.",
-		position = 1,
-		section = cooldownSection
-	)
-	default String trackedActions()
-	{
-		return "";
-	}
-
-	@ConfigItem(
-		keyName = "trackInventory",
-		name = "Track inventory",
-		description = "Start cooldowns from matching inventory item clicks.",
-		position = 2,
-		section = cooldownSection
-	)
-	default boolean trackInventory()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "trackEquipment",
-		name = "Track equipment",
-		description = "Start cooldowns from matching equipped item clicks.",
-		position = 3,
-		section = cooldownSection
-	)
-	default boolean trackEquipment()
-	{
-		return true;
-	}
-
 	@Range(max = 100)
 	@ConfigItem(
 		keyName = "readyVisibleTicks",
-		name = "Ready display ticks",
-		description = "How many game ticks to keep showing READY after a cooldown reaches zero.",
-		position = 4,
+		name = "Panel ready ticks",
+		description = "How many game ticks to keep showing READY in the panel after the cooldown reaches zero.",
+		position = 0,
 		section = cooldownSection
 	)
 	default int readyVisibleTicks()

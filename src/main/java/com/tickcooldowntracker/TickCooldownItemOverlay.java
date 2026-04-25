@@ -27,23 +27,20 @@ class TickCooldownItemOverlay extends WidgetItemOverlay
 	@Override
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
-		CooldownState state = plugin.getStateForItem(itemId);
-		if (state == null)
+		if (!plugin.isFlaskItem(itemId))
 		{
 			return;
 		}
 
-		int currentTick = plugin.getCurrentTick();
-		int remainingTicks = state.getRemainingTicks(currentTick);
 		Rectangle bounds = widgetItem.getCanvasBounds();
 
-		if (remainingTicks > 0)
+		if (plugin.isCooldownActive())
 		{
-			renderActive(graphics, bounds, remainingTicks, state.getRemainingRatio(currentTick));
+			renderActive(graphics, bounds, plugin.getCooldownTicks(), plugin.getCooldownRatio());
 			return;
 		}
 
-		if (config.showReadyHighlight())
+		if (config.showReadyHighlight() && plugin.shouldShowReadyItem())
 		{
 			renderReady(graphics, bounds);
 		}
