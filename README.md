@@ -3,8 +3,8 @@
 RuneLite external plugin for tracking the Leagues 6 Flask of Fervour cooldown by exact game tick.
 
 Features:
-- Reads RuneLite's `LEAGUE_RELIC_FLASK_OF_FERVOUR_COOLDOWN` varp instead of guessing from clicks
-- Decodes the packed Leagues reusable-item varp so metadata bits do not display as huge cooldown values
+- Starts a 300 tick cooldown when you activate Flask of Fervour
+- Calibrates from the in-game cooldown message when the flask reports remaining seconds
 - Shows exact cooldown ticks remaining in a movable RuneLite overlay panel
 - Reduces the predicted cooldown immediately from your outgoing hitsplats: `damage / 10` ticks
 - Draws cooldown tick text and shading over Flask of Fervour and the empty flask variant

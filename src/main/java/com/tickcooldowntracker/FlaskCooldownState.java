@@ -3,47 +3,11 @@ package com.tickcooldowntracker;
 final class FlaskCooldownState
 {
 	static final int DEFAULT_FULL_COOLDOWN_TICKS = 300;
-	private static final int PACKED_COOLDOWN_SHIFT = 10;
-	private static final int PACKED_METADATA_MASK = (1 << PACKED_COOLDOWN_SHIFT) - 1;
-	private static final int MAX_REASONABLE_COOLDOWN_TICKS = 1200;
 
 	private int cooldownTicks;
 	private int highestObservedCooldownTicks = DEFAULT_FULL_COOLDOWN_TICKS;
 	private int readySinceTick = -1;
 	private int lastClientTick = -1;
-	private int rawValue = -1;
-	private TickCooldownTrackerConfig.CooldownValueMode resolvedMode;
-
-	void sync(int varpValue, int currentTick, TickCooldownTrackerConfig.CooldownValueMode configuredMode)
-	{
-		boolean wasActive = cooldownTicks > 0 || rawValue > 0;
-		advanceTo(currentTick);
-
-		int updatedRawValue = Math.max(0, varpValue);
-		boolean packedValue = isPackedRawValue(updatedRawValue);
-		int decodedValue = decodeRawCooldownValue(updatedRawValue);
-		if (decodedValue > 0)
-		{
-			TickCooldownTrackerConfig.CooldownValueMode mode = resolveMode(decodedValue, currentTick, configuredMode, packedValue);
-			int updatedCooldownTicks = convertToTicks(decodedValue, currentTick, mode);
-			if (cooldownTicks == 0 || updatedCooldownTicks < cooldownTicks)
-			{
-				cooldownTicks = updatedCooldownTicks;
-			}
-
-			highestObservedCooldownTicks = Math.max(highestObservedCooldownTicks, cooldownTicks);
-			rawValue = updatedRawValue;
-			readySinceTick = -1;
-			return;
-		}
-
-		if (wasActive && readySinceTick < 0)
-		{
-			readySinceTick = currentTick;
-		}
-		cooldownTicks = 0;
-		rawValue = updatedRawValue;
-	}
 
 	void startCooldown(int currentTick)
 	{
@@ -56,7 +20,6 @@ final class FlaskCooldownState
 		cooldownTicks = Math.max(0, remainingTicks);
 		highestObservedCooldownTicks = Math.max(highestObservedCooldownTicks, cooldownTicks);
 		readySinceTick = cooldownTicks == 0 ? currentTick : -1;
-		resolvedMode = TickCooldownTrackerConfig.CooldownValueMode.TICKS;
 	}
 
 	void reset()
@@ -65,8 +28,6 @@ final class FlaskCooldownState
 		highestObservedCooldownTicks = DEFAULT_FULL_COOLDOWN_TICKS;
 		readySinceTick = -1;
 		lastClientTick = -1;
-		rawValue = -1;
-		resolvedMode = null;
 	}
 
 	int reduceFromDamage(int damage, int currentTick)
@@ -106,17 +67,6 @@ final class FlaskCooldownState
 		return cooldownTicks;
 	}
 
-	int getRawValue()
-	{
-		return Math.max(0, rawValue);
-	}
-
-	String getModeLabel()
-	{
-		String modeLabel = resolvedMode == null ? "unknown" : resolvedMode.name().toLowerCase();
-		return isPackedRawValue(rawValue) ? modeLabel + "+packed" : modeLabel;
-	}
-
 	double getCooldownRatio()
 	{
 		if (highestObservedCooldownTicks <= 0)
@@ -127,86 +77,16 @@ final class FlaskCooldownState
 		return Math.min(1, Math.max(0, (double) cooldownTicks / highestObservedCooldownTicks));
 	}
 
-	private void advanceTo(int currentTick)
+	void advanceTo(int currentTick)
 	{
 		if (lastClientTick >= 0 && currentTick > lastClientTick && cooldownTicks > 0)
 		{
 			cooldownTicks = Math.max(0, cooldownTicks - (currentTick - lastClientTick));
+			if (cooldownTicks == 0 && readySinceTick < 0)
+			{
+				readySinceTick = currentTick;
+			}
 		}
 		lastClientTick = currentTick;
-	}
-
-	private TickCooldownTrackerConfig.CooldownValueMode resolveMode(
-		int updatedRawValue,
-		int currentTick,
-		TickCooldownTrackerConfig.CooldownValueMode configuredMode,
-		boolean packedValue)
-	{
-		if (packedValue)
-		{
-			resolvedMode = TickCooldownTrackerConfig.CooldownValueMode.TICKS;
-			return resolvedMode;
-		}
-
-		if (configuredMode != TickCooldownTrackerConfig.CooldownValueMode.AUTO)
-		{
-			resolvedMode = configuredMode;
-			return configuredMode;
-		}
-
-		if (resolvedMode != null)
-		{
-			return resolvedMode;
-		}
-
-		if (updatedRawValue > currentTick && updatedRawValue - currentTick <= MAX_REASONABLE_COOLDOWN_TICKS)
-		{
-			resolvedMode = TickCooldownTrackerConfig.CooldownValueMode.END_TICK;
-		}
-		else if (updatedRawValue > 220)
-		{
-			resolvedMode = TickCooldownTrackerConfig.CooldownValueMode.TICKS;
-		}
-		else
-		{
-			resolvedMode = TickCooldownTrackerConfig.CooldownValueMode.SECONDS;
-		}
-
-		return resolvedMode;
-	}
-
-	private int convertToTicks(int updatedRawValue, int currentTick, TickCooldownTrackerConfig.CooldownValueMode mode)
-	{
-		switch (mode)
-		{
-			case END_TICK:
-				return Math.max(0, updatedRawValue - currentTick);
-			case SECONDS:
-				return (int) Math.round(updatedRawValue * 5.0 / 3.0);
-			case TICKS:
-			case AUTO:
-			default:
-				return updatedRawValue;
-		}
-	}
-
-	private static int decodeRawCooldownValue(int value)
-	{
-		if (!isPackedRawValue(value))
-		{
-			return value;
-		}
-
-		if ((value & PACKED_METADATA_MASK) == 0)
-		{
-			return 0;
-		}
-
-		return value >>> PACKED_COOLDOWN_SHIFT;
-	}
-
-	private static boolean isPackedRawValue(int value)
-	{
-		return value > MAX_REASONABLE_COOLDOWN_TICKS;
 	}
 }

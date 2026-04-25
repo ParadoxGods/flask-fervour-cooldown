@@ -10,14 +10,13 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Hitsplat;
+import net.runelite.api.Skill;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.MenuOptionClicked;
-import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.ItemID;
-import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
@@ -33,8 +32,10 @@ import net.runelite.client.util.Text;
 )
 public class TickCooldownTrackerPlugin extends Plugin
 {
-	private static final Pattern COOLDOWN_SECONDS_PATTERN = Pattern.compile("(?:wait|cooldown).*?(\\d+)\\s+seconds?");
-	private static final int PENDING_FLASK_CLICK_TICKS = 3;
+	private static final Pattern COOLDOWN_MINUTES_PATTERN = Pattern.compile("(\\d+)\\s+minutes?");
+	private static final Pattern COOLDOWN_SECONDS_PATTERN = Pattern.compile("(\\d+)\\s+seconds?");
+	private static final int PENDING_FLASK_CLICK_TICKS = 5;
+	private static final int FLASK_EXPLOSION_TICKS = 4;
 
 	private static final Set<Integer> FLASK_ITEM_IDS = Set.of(
 		ItemID.LEAGUE_FLASK_OF_FERVOUR,
@@ -63,6 +64,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 
 	private final FlaskCooldownState cooldownState = new FlaskCooldownState();
 	private int pendingFlaskClickTick = -1;
+	private int lastFlaskUseTick = -1;
 
 	@Provides
 	TickCooldownTrackerConfig provideConfig(ConfigManager configManager)
@@ -75,7 +77,6 @@ public class TickCooldownTrackerPlugin extends Plugin
 	{
 		overlayManager.add(overlay);
 		overlayManager.add(itemOverlay);
-		syncCooldownFromClient();
 	}
 
 	@Override
@@ -85,6 +86,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 		overlayManager.remove(itemOverlay);
 		cooldownState.reset();
 		pendingFlaskClickTick = -1;
+		lastFlaskUseTick = -1;
 	}
 
 	@Subscribe
@@ -97,26 +99,17 @@ public class TickCooldownTrackerPlugin extends Plugin
 		}
 		else if (gameState == GameState.LOGGED_IN)
 		{
-			syncCooldownFromClient();
+			pendingFlaskClickTick = -1;
 		}
 	}
 
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
-		syncCooldownFromClient();
+		cooldownState.advanceTo(client.getTickCount());
 		if (pendingFlaskClickTick >= 0 && client.getTickCount() - pendingFlaskClickTick > PENDING_FLASK_CLICK_TICKS)
 		{
 			pendingFlaskClickTick = -1;
-		}
-	}
-
-	@Subscribe
-	public void onVarbitChanged(VarbitChanged event)
-	{
-		if (event.getVarpId() == VarPlayerID.LEAGUE_RELIC_FLASK_OF_FERVOUR_COOLDOWN)
-		{
-			syncCooldown(event.getValue());
 		}
 	}
 
@@ -135,42 +128,45 @@ public class TickCooldownTrackerPlugin extends Plugin
 		}
 
 		int damage = hitsplat.getAmount();
+		if (isLikelyOwnFlaskExplosion(damage))
+		{
+			return;
+		}
+
 		cooldownState.reduceFromDamage(damage, client.getTickCount());
 	}
 
 	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked event)
 	{
-		if (!event.isItemOp() || !isFlaskItem(event.getItemId()))
+		if (!isFlaskActivation(event))
 		{
 			return;
 		}
 
 		pendingFlaskClickTick = client.getTickCount();
-		if (!cooldownState.isActive())
-		{
-			cooldownState.startCooldown(client.getTickCount());
-		}
+		lastFlaskUseTick = client.getTickCount();
+		cooldownState.startCooldown(client.getTickCount());
 	}
 
 	@Subscribe
 	public void onChatMessage(ChatMessage event)
 	{
-		if (pendingFlaskClickTick < 0 || event.getType() != ChatMessageType.GAMEMESSAGE)
+		if (pendingFlaskClickTick < 0 || !isCooldownMessageType(event.getType()))
 		{
 			return;
 		}
 
 		String message = Text.removeTags(event.getMessage()).toLowerCase(Locale.ROOT);
-		Matcher matcher = COOLDOWN_SECONDS_PATTERN.matcher(message);
-		if (!matcher.find())
+		int seconds = parseCooldownSeconds(message);
+		if (seconds < 0)
 		{
 			return;
 		}
 
-		int seconds = Integer.parseInt(matcher.group(1));
 		cooldownState.setCooldownTicks(secondsToTicks(seconds), client.getTickCount());
 		pendingFlaskClickTick = -1;
+		lastFlaskUseTick = -1;
 	}
 
 	boolean isFlaskItem(int itemId)
@@ -215,19 +211,64 @@ public class TickCooldownTrackerPlugin extends Plugin
 		return cooldownState.getCooldownRatio();
 	}
 
-	private void syncCooldownFromClient()
+	private boolean isFlaskActivation(MenuOptionClicked event)
 	{
-		if (client.getGameState() != GameState.LOGGED_IN)
+		if (!event.isItemOp() || !isFlaskItem(event.getItemId()))
 		{
-			return;
+			return false;
 		}
 
-		syncCooldown(client.getVarpValue(VarPlayerID.LEAGUE_RELIC_FLASK_OF_FERVOUR_COOLDOWN));
+		String option = Text.removeTags(event.getMenuOption()).toLowerCase(Locale.ROOT);
+		return event.getItemOp() == 1
+			|| option.contains("drink")
+			|| option.contains("activate")
+			|| option.contains("use")
+			|| option.contains("consume");
 	}
 
-	private void syncCooldown(int rawCooldownValue)
+	private boolean isLikelyOwnFlaskExplosion(int damage)
 	{
-		cooldownState.sync(rawCooldownValue, client.getTickCount(), config.cooldownValueMode());
+		if (lastFlaskUseTick < 0 || client.getTickCount() - lastFlaskUseTick > FLASK_EXPLOSION_TICKS)
+		{
+			return false;
+		}
+
+		int prayer = client.getRealSkillLevel(Skill.PRAYER);
+		int pvmExplosionDamage = (int) Math.floor(prayer * 0.6);
+		int pvpExplosionDamage = (int) Math.floor(prayer * 0.3);
+		return damage == pvmExplosionDamage || damage == pvpExplosionDamage;
+	}
+
+	private static boolean isCooldownMessageType(ChatMessageType type)
+	{
+		return type == ChatMessageType.GAMEMESSAGE || type == ChatMessageType.ENGINE || type == ChatMessageType.SPAM;
+	}
+
+	private static int parseCooldownSeconds(String message)
+	{
+		if (!message.contains("cooldown") && !message.contains("wait") && !message.contains("again") && !message.contains("ready"))
+		{
+			return -1;
+		}
+
+		int seconds = 0;
+		boolean matched = false;
+
+		Matcher minutesMatcher = COOLDOWN_MINUTES_PATTERN.matcher(message);
+		if (minutesMatcher.find())
+		{
+			seconds += Integer.parseInt(minutesMatcher.group(1)) * 60;
+			matched = true;
+		}
+
+		Matcher secondsMatcher = COOLDOWN_SECONDS_PATTERN.matcher(message);
+		if (secondsMatcher.find())
+		{
+			seconds += Integer.parseInt(secondsMatcher.group(1));
+			matched = true;
+		}
+
+		return matched ? seconds : -1;
 	}
 
 	private static int secondsToTicks(int seconds)
