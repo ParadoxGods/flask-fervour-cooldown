@@ -62,7 +62,7 @@ public class FlaskCooldownStateTest
 	}
 
 	@Test
-	public void decodesPackedHighBitFlagAsCooldownMetadata()
+	public void decodesPackedHighBitFlagAsReadyMetadata()
 	{
 		FlaskCooldownState state = new FlaskCooldownState();
 
@@ -70,22 +70,41 @@ public class FlaskCooldownStateTest
 		assertFalse(state.isActive());
 		assertTrue(state.isReady());
 		assertEquals(0, state.getCooldownTicks());
-
-		state.sync(32768 + 180, 11, TickCooldownTrackerConfig.CooldownValueMode.TICKS);
-		assertTrue(state.isActive());
-		assertEquals(180, state.getCooldownTicks());
 	}
 
 	@Test
-	public void decodesLargePackedReusableItemValueAsSeconds()
+	public void decodesLargePackedReusableItemValueAsTicks()
 	{
 		FlaskCooldownState state = new FlaskCooldownState();
 
 		state.sync(253600, 10, TickCooldownTrackerConfig.CooldownValueMode.AUTO);
 
 		assertTrue(state.isActive());
-		assertEquals(267, state.getCooldownTicks());
-		assertEquals("seconds+packed", state.getModeLabel());
+		assertEquals(247, state.getCooldownTicks());
+		assertEquals("ticks+packed", state.getModeLabel());
+	}
+
+	@Test
+	public void ignoresLowByteMetadataWhenPackedValueContainsRemainingTicks()
+	{
+		FlaskCooldownState state = new FlaskCooldownState();
+
+		state.sync((45 << 10) | 149, 10, TickCooldownTrackerConfig.CooldownValueMode.AUTO);
+
+		assertTrue(state.isActive());
+		assertEquals(45, state.getCooldownTicks());
+	}
+
+	@Test
+	public void treatsPackedMetadataOnlyValueAsReady()
+	{
+		FlaskCooldownState state = new FlaskCooldownState();
+
+		state.sync(32768, 10, TickCooldownTrackerConfig.CooldownValueMode.AUTO);
+
+		assertFalse(state.isActive());
+		assertTrue(state.isReady());
+		assertEquals(0, state.getCooldownTicks());
 	}
 
 	@Test

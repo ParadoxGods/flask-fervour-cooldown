@@ -1,14 +1,20 @@
 package com.tickcooldowntracker;
 
 import com.google.inject.Provides;
+import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.inject.Inject;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Hitsplat;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
+import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarPlayerID;
@@ -18,6 +24,7 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.Text;
 
 @PluginDescriptor(
 	name = "Flask Fervour Cooldown",
@@ -26,6 +33,9 @@ import net.runelite.client.ui.overlay.OverlayManager;
 )
 public class TickCooldownTrackerPlugin extends Plugin
 {
+	private static final Pattern COOLDOWN_SECONDS_PATTERN = Pattern.compile("(?:wait|cooldown).*?(\\d+)\\s+seconds?");
+	private static final int PENDING_FLASK_CLICK_TICKS = 3;
+
 	private static final Set<Integer> FLASK_ITEM_IDS = Set.of(
 		ItemID.LEAGUE_FLASK_OF_FERVOUR,
 		ItemID.LEAGUE_FLASK_OF_FERVOUR_EMPTY,
@@ -52,6 +62,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 	private TickCooldownItemOverlay itemOverlay;
 
 	private final FlaskCooldownState cooldownState = new FlaskCooldownState();
+	private int pendingFlaskClickTick = -1;
 
 	@Provides
 	TickCooldownTrackerConfig provideConfig(ConfigManager configManager)
@@ -73,6 +84,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 		overlayManager.remove(overlay);
 		overlayManager.remove(itemOverlay);
 		cooldownState.reset();
+		pendingFlaskClickTick = -1;
 	}
 
 	@Subscribe
@@ -93,6 +105,10 @@ public class TickCooldownTrackerPlugin extends Plugin
 	public void onGameTick(GameTick event)
 	{
 		syncCooldownFromClient();
+		if (pendingFlaskClickTick >= 0 && client.getTickCount() - pendingFlaskClickTick > PENDING_FLASK_CLICK_TICKS)
+		{
+			pendingFlaskClickTick = -1;
+		}
 	}
 
 	@Subscribe
@@ -120,6 +136,41 @@ public class TickCooldownTrackerPlugin extends Plugin
 
 		int damage = hitsplat.getAmount();
 		cooldownState.reduceFromDamage(damage, client.getTickCount());
+	}
+
+	@Subscribe
+	public void onMenuOptionClicked(MenuOptionClicked event)
+	{
+		if (!event.isItemOp() || !isFlaskItem(event.getItemId()))
+		{
+			return;
+		}
+
+		pendingFlaskClickTick = client.getTickCount();
+		if (!cooldownState.isActive())
+		{
+			cooldownState.startCooldown(client.getTickCount());
+		}
+	}
+
+	@Subscribe
+	public void onChatMessage(ChatMessage event)
+	{
+		if (pendingFlaskClickTick < 0 || event.getType() != ChatMessageType.GAMEMESSAGE)
+		{
+			return;
+		}
+
+		String message = Text.removeTags(event.getMessage()).toLowerCase(Locale.ROOT);
+		Matcher matcher = COOLDOWN_SECONDS_PATTERN.matcher(message);
+		if (!matcher.find())
+		{
+			return;
+		}
+
+		int seconds = Integer.parseInt(matcher.group(1));
+		cooldownState.setCooldownTicks(secondsToTicks(seconds), client.getTickCount());
+		pendingFlaskClickTick = -1;
 	}
 
 	boolean isFlaskItem(int itemId)
@@ -177,5 +228,10 @@ public class TickCooldownTrackerPlugin extends Plugin
 	private void syncCooldown(int rawCooldownValue)
 	{
 		cooldownState.sync(rawCooldownValue, client.getTickCount(), config.cooldownValueMode());
+	}
+
+	private static int secondsToTicks(int seconds)
+	{
+		return (seconds * 5 + 2) / 3;
 	}
 }

@@ -3,7 +3,8 @@ package com.tickcooldowntracker;
 final class FlaskCooldownState
 {
 	static final int DEFAULT_FULL_COOLDOWN_TICKS = 300;
-	private static final int PACKED_SECONDS_MASK = 0xff;
+	private static final int PACKED_COOLDOWN_SHIFT = 10;
+	private static final int PACKED_METADATA_MASK = (1 << PACKED_COOLDOWN_SHIFT) - 1;
 	private static final int MAX_REASONABLE_COOLDOWN_TICKS = 1200;
 
 	private int cooldownTicks;
@@ -25,7 +26,7 @@ final class FlaskCooldownState
 		{
 			TickCooldownTrackerConfig.CooldownValueMode mode = resolveMode(decodedValue, currentTick, configuredMode, packedValue);
 			int updatedCooldownTicks = convertToTicks(decodedValue, currentTick, mode);
-			if (updatedRawValue != rawValue || updatedCooldownTicks < cooldownTicks || cooldownTicks == 0)
+			if (cooldownTicks == 0 || updatedCooldownTicks < cooldownTicks)
 			{
 				cooldownTicks = updatedCooldownTicks;
 			}
@@ -42,6 +43,20 @@ final class FlaskCooldownState
 		}
 		cooldownTicks = 0;
 		rawValue = updatedRawValue;
+	}
+
+	void startCooldown(int currentTick)
+	{
+		setCooldownTicks(DEFAULT_FULL_COOLDOWN_TICKS, currentTick);
+	}
+
+	void setCooldownTicks(int remainingTicks, int currentTick)
+	{
+		advanceTo(currentTick);
+		cooldownTicks = Math.max(0, remainingTicks);
+		highestObservedCooldownTicks = Math.max(highestObservedCooldownTicks, cooldownTicks);
+		readySinceTick = cooldownTicks == 0 ? currentTick : -1;
+		resolvedMode = TickCooldownTrackerConfig.CooldownValueMode.TICKS;
 	}
 
 	void reset()
@@ -127,16 +142,16 @@ final class FlaskCooldownState
 		TickCooldownTrackerConfig.CooldownValueMode configuredMode,
 		boolean packedValue)
 	{
+		if (packedValue)
+		{
+			resolvedMode = TickCooldownTrackerConfig.CooldownValueMode.TICKS;
+			return resolvedMode;
+		}
+
 		if (configuredMode != TickCooldownTrackerConfig.CooldownValueMode.AUTO)
 		{
 			resolvedMode = configuredMode;
 			return configuredMode;
-		}
-
-		if (packedValue)
-		{
-			resolvedMode = TickCooldownTrackerConfig.CooldownValueMode.SECONDS;
-			return resolvedMode;
 		}
 
 		if (resolvedMode != null)
@@ -177,7 +192,17 @@ final class FlaskCooldownState
 
 	private static int decodeRawCooldownValue(int value)
 	{
-		return isPackedRawValue(value) ? value & PACKED_SECONDS_MASK : value;
+		if (!isPackedRawValue(value))
+		{
+			return value;
+		}
+
+		if ((value & PACKED_METADATA_MASK) == 0)
+		{
+			return 0;
+		}
+
+		return value >>> PACKED_COOLDOWN_SHIFT;
 	}
 
 	private static boolean isPackedRawValue(int value)
