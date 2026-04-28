@@ -6,7 +6,6 @@ final class FlaskCooldownState
 
 	private int cooldownTicks;
 	private int highestObservedCooldownTicks = DEFAULT_FULL_COOLDOWN_TICKS;
-	private int readySinceTick = -1;
 	private int lastClientTick = -1;
 
 	void startCooldown(int currentTick)
@@ -22,24 +21,14 @@ final class FlaskCooldownState
 	void setCooldownTicks(int remainingTicks, int currentTick)
 	{
 		advanceTo(currentTick);
-		boolean wasActive = cooldownTicks > 0;
 		cooldownTicks = Math.max(0, remainingTicks);
 		highestObservedCooldownTicks = Math.max(highestObservedCooldownTicks, cooldownTicks);
-		if (cooldownTicks > 0)
-		{
-			readySinceTick = -1;
-		}
-		else if (wasActive && readySinceTick < 0)
-		{
-			readySinceTick = currentTick;
-		}
 	}
 
 	void reset()
 	{
 		cooldownTicks = 0;
 		highestObservedCooldownTicks = DEFAULT_FULL_COOLDOWN_TICKS;
-		readySinceTick = -1;
 		lastClientTick = -1;
 	}
 
@@ -53,10 +42,6 @@ final class FlaskCooldownState
 		}
 
 		cooldownTicks = Math.max(0, cooldownTicks - reductionTicks);
-		if (cooldownTicks == 0 && readySinceTick < 0)
-		{
-			readySinceTick = currentTick;
-		}
 		return reductionTicks;
 	}
 
@@ -68,11 +53,6 @@ final class FlaskCooldownState
 	boolean isReady()
 	{
 		return cooldownTicks == 0;
-	}
-
-	boolean isRecentlyReady(int currentTick, int readyVisibleTicks)
-	{
-		return readySinceTick >= 0 && currentTick - readySinceTick < readyVisibleTicks;
 	}
 
 	int getCooldownTicks()
@@ -95,10 +75,6 @@ final class FlaskCooldownState
 		if (lastClientTick >= 0 && currentTick > lastClientTick && cooldownTicks > 0)
 		{
 			cooldownTicks = Math.max(0, cooldownTicks - (currentTick - lastClientTick));
-			if (cooldownTicks == 0 && readySinceTick < 0)
-			{
-				readySinceTick = currentTick;
-			}
 		}
 		lastClientTick = currentTick;
 	}

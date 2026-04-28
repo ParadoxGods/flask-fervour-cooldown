@@ -6,7 +6,6 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
-import net.runelite.client.config.Range;
 
 @ConfigGroup(TickCooldownTrackerConfig.GROUP)
 public interface TickCooldownTrackerConfig extends Config
@@ -14,75 +13,11 @@ public interface TickCooldownTrackerConfig extends Config
 	String GROUP = "tickcooldowntracker";
 
 	@ConfigSection(
-		name = "Flask cooldown",
-		description = "Flask of Fervour cooldown tracking.",
-		position = 0
-	)
-	String cooldownSection = "cooldownSection";
-
-	@ConfigSection(
-		name = "Overlay",
-		description = "Movable on-screen cooldown panel.",
-		position = 1
-	)
-	String overlaySection = "overlaySection";
-
-	@ConfigSection(
 		name = "Item highlights",
 		description = "Inventory and equipment item overlays.",
-		position = 2
+		position = 0
 	)
 	String itemSection = "itemSection";
-
-	@Range(max = 100)
-	@ConfigItem(
-		keyName = "readyVisibleTicks",
-		name = "Panel ready ticks",
-		description = "How many game ticks to keep showing READY in the panel after the cooldown reaches zero.",
-		position = 0,
-		section = cooldownSection
-	)
-	default int readyVisibleTicks()
-	{
-		return 5;
-	}
-
-	@ConfigItem(
-		keyName = "showPanel",
-		name = "Show panel",
-		description = "Show the movable on-screen cooldown panel.",
-		position = 0,
-		section = overlaySection
-	)
-	default boolean showPanel()
-	{
-		return true;
-	}
-
-	@Range(min = 90, max = 300)
-	@ConfigItem(
-		keyName = "panelWidth",
-		name = "Panel width",
-		description = "Preferred width of the cooldown panel.",
-		position = 1,
-		section = overlaySection
-	)
-	default int panelWidth()
-	{
-		return 170;
-	}
-
-	@ConfigItem(
-		keyName = "showReadyInPanel",
-		name = "Show ready in panel",
-		description = "Keep finished cooldowns in the panel during the ready display window.",
-		position = 2,
-		section = overlaySection
-	)
-	default boolean showReadyInPanel()
-	{
-		return true;
-	}
 
 	@ConfigItem(
 		keyName = "showItemTicks",

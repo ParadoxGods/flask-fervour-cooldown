@@ -1,7 +1,6 @@
 package com.tickcooldowntracker;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -44,20 +43,6 @@ public class FlaskCooldownStateTest
 	}
 
 	@Test
-	public void marksRecentlyReadyWhenCooldownDropsToZero()
-	{
-		FlaskCooldownState state = new FlaskCooldownState();
-
-		state.setCooldownTicks(2, 10);
-		state.advanceTo(12);
-
-		assertFalse(state.isActive());
-		assertTrue(state.isReady());
-		assertTrue(state.isRecentlyReady(16, 5));
-		assertFalse(state.isRecentlyReady(17, 5));
-	}
-
-	@Test
 	public void reducesOneTickPerTenDamage()
 	{
 		FlaskCooldownState state = new FlaskCooldownState();
@@ -85,23 +70,20 @@ public class FlaskCooldownStateTest
 	}
 
 	@Test
-	public void doesNotRefreshReadyWindowWhenAlreadyReady()
-	{
-		FlaskCooldownState state = new FlaskCooldownState();
-
-		state.setCooldownTicks(1, 10);
-		state.advanceTo(11);
-		state.setCooldownTicks(0, 15);
-
-		assertFalse(state.isRecentlyReady(16, 5));
-	}
-
-	@Test
 	public void decodesAbsoluteCooldownEndTickFromMapClock()
 	{
 		assertEquals(27, TickCooldownTrackerPlugin.decodeCooldownTicks(253627, 253600));
 		assertEquals(0, TickCooldownTrackerPlugin.decodeCooldownTicks(253600, 253600));
 		assertEquals(0, TickCooldownTrackerPlugin.decodeCooldownTicks(253500, 253600));
+	}
+
+	@Test
+	public void formatsSavedSecondsFromTicks()
+	{
+		assertEquals("0", TickCooldownTrackerPlugin.formatSavedSeconds(0));
+		assertEquals("0.6", TickCooldownTrackerPlugin.formatSavedSeconds(1));
+		assertEquals("3", TickCooldownTrackerPlugin.formatSavedSeconds(5));
+		assertEquals("12", TickCooldownTrackerPlugin.formatSavedSeconds(20));
 	}
 
 	@Test

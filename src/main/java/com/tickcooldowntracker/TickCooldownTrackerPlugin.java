@@ -58,15 +58,10 @@ public class TickCooldownTrackerPlugin extends Plugin
 	private OverlayManager overlayManager;
 
 	@Inject
-	private TickCooldownTrackerConfig config;
-
-	@Inject
-	private TickCooldownOverlay overlay;
-
-	@Inject
 	private TickCooldownItemOverlay itemOverlay;
 
 	private final FlaskCooldownState cooldownState = new FlaskCooldownState();
+	private final CooldownSavingsTracker savingsTracker = new CooldownSavingsTracker();
 	private int pendingFlaskClickTick = -1;
 	private int lastFlaskUseTick = -1;
 	private boolean cooldownVarpSeen;
@@ -80,7 +75,6 @@ public class TickCooldownTrackerPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		overlayManager.add(overlay);
 		overlayManager.add(itemOverlay);
 		syncCooldownFromVarps();
 	}
@@ -88,9 +82,9 @@ public class TickCooldownTrackerPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
-		overlayManager.remove(overlay);
 		overlayManager.remove(itemOverlay);
 		cooldownState.reset();
+		savingsTracker.reset();
 		pendingFlaskClickTick = -1;
 		lastFlaskUseTick = -1;
 		cooldownVarpSeen = false;
@@ -103,6 +97,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 		if (gameState == GameState.LOGIN_SCREEN || gameState == GameState.HOPPING)
 		{
 			cooldownState.reset();
+			savingsTracker.reset();
 			cooldownVarpSeen = false;
 		}
 		else if (gameState == GameState.LOGGED_IN)
@@ -115,8 +110,17 @@ public class TickCooldownTrackerPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
-		syncCooldownFromVarps();
+		boolean syncedFromVarps = syncCooldownFromVarps();
+		boolean wasActive = cooldownState.isActive();
 		cooldownState.advanceTo(client.getTickCount());
+		if (!syncedFromVarps && wasActive && !cooldownState.isActive())
+		{
+			notifyCooldownReadyIfNeeded(savingsTracker.complete(client.getTickCount()));
+		}
+		else if (!syncedFromVarps && cooldownState.isActive())
+		{
+			savingsTracker.markSnapshot(cooldownState.getCooldownTicks(), client.getTickCount());
+		}
 		if (pendingFlaskClickTick >= 0 && client.getTickCount() - pendingFlaskClickTick > PENDING_FLASK_CLICK_TICKS)
 		{
 			pendingFlaskClickTick = -1;
@@ -154,7 +158,16 @@ public class TickCooldownTrackerPlugin extends Plugin
 			return;
 		}
 
-		cooldownState.reduceFromDamage(damage, client.getTickCount());
+		int savedTicks = cooldownState.reduceFromDamage(damage, client.getTickCount());
+		savingsTracker.addSavedTicks(savedTicks);
+		if (cooldownState.isReady())
+		{
+			notifyCooldownReadyIfNeeded(savingsTracker.complete(client.getTickCount()));
+		}
+		else if (savedTicks > 0)
+		{
+			savingsTracker.markSnapshot(cooldownState.getCooldownTicks(), client.getTickCount());
+		}
 	}
 
 	@Subscribe
@@ -171,7 +184,9 @@ public class TickCooldownTrackerPlugin extends Plugin
 		if (!activeBeforeClick)
 		{
 			lastFlaskUseTick = client.getTickCount();
+			savingsTracker.startCycle();
 			cooldownState.startCooldownOnNextTick(client.getTickCount());
+			savingsTracker.markSnapshot(FlaskCooldownState.DEFAULT_FULL_COOLDOWN_TICKS, client.getTickCount() + 1);
 		}
 	}
 
@@ -192,7 +207,16 @@ public class TickCooldownTrackerPlugin extends Plugin
 
 		if (!syncCooldownFromVarps())
 		{
-			cooldownState.setCooldownTicks(secondsToTicks(seconds), client.getTickCount());
+			int remainingTicks = secondsToTicks(seconds);
+			cooldownState.setCooldownTicks(remainingTicks, client.getTickCount());
+			if (remainingTicks > 0)
+			{
+				savingsTracker.markSnapshot(remainingTicks, client.getTickCount());
+			}
+			else
+			{
+				notifyCooldownReadyIfNeeded(savingsTracker.complete(client.getTickCount()));
+			}
 		}
 		pendingFlaskClickTick = -1;
 		lastFlaskUseTick = -1;
@@ -218,11 +242,6 @@ public class TickCooldownTrackerPlugin extends Plugin
 	boolean isCooldownActive()
 	{
 		return cooldownState.isActive();
-	}
-
-	boolean shouldShowReadyPanel()
-	{
-		return cooldownState.isReady() || cooldownState.isRecentlyReady(client.getTickCount(), config.readyVisibleTicks());
 	}
 
 	boolean shouldShowReadyItem()
@@ -252,7 +271,7 @@ public class TickCooldownTrackerPlugin extends Plugin
 		{
 			if (cooldownVarpSeen && !isWaitingForActivationVarp())
 			{
-				cooldownState.setCooldownTicks(0, client.getTickCount());
+				applyCooldownSnapshot(0, currentCooldownClock());
 				pendingFlaskClickTick = -1;
 			}
 			return cooldownVarpSeen;
@@ -276,13 +295,25 @@ public class TickCooldownTrackerPlugin extends Plugin
 			return true;
 		}
 
-		cooldownState.setCooldownTicks(remainingTicks, client.getTickCount());
+		applyCooldownSnapshot(remainingTicks, mapClock);
 		pendingFlaskClickTick = -1;
 		if (remainingTicks > 0)
 		{
 			lastFlaskUseTick = -1;
 		}
 		return true;
+	}
+
+	private void applyCooldownSnapshot(int remainingTicks, int clock)
+	{
+		notifyCooldownReadyIfNeeded(savingsTracker.observe(remainingTicks, clock));
+		cooldownState.setCooldownTicks(remainingTicks, client.getTickCount());
+	}
+
+	private int currentCooldownClock()
+	{
+		int mapClock = client.getVarpValue(VarPlayerID.MAP_CLOCK);
+		return mapClock > 0 ? mapClock : client.getTickCount();
 	}
 
 	static int decodeCooldownTicks(int cooldownEndTick, int mapClock)
@@ -293,6 +324,18 @@ public class TickCooldownTrackerPlugin extends Plugin
 	private boolean isWaitingForActivationVarp()
 	{
 		return lastFlaskUseTick >= 0 && client.getTickCount() - lastFlaskUseTick <= PENDING_FLASK_CLICK_TICKS;
+	}
+
+	private void notifyCooldownReadyIfNeeded(boolean shouldNotify)
+	{
+		if (!shouldNotify)
+		{
+			return;
+		}
+
+		int savedTicks = savingsTracker.getSavedTicks();
+		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Flask cooldown saved: "
+			+ formatSavedSeconds(savedTicks) + "s (" + savedTicks + " " + tickLabel(savedTicks) + ").", null);
 	}
 
 	private boolean isFlaskActivation(MenuOptionClicked event)
@@ -375,5 +418,20 @@ public class TickCooldownTrackerPlugin extends Plugin
 	private static int secondsToTicks(int seconds)
 	{
 		return (seconds * 5 + 2) / 3;
+	}
+
+	static String formatSavedSeconds(int savedTicks)
+	{
+		int tenthsOfSeconds = Math.max(0, savedTicks) * 6;
+		if (tenthsOfSeconds % 10 == 0)
+		{
+			return Integer.toString(tenthsOfSeconds / 10);
+		}
+		return String.format(Locale.ROOT, "%.1f", tenthsOfSeconds / 10.0);
+	}
+
+	private static String tickLabel(int ticks)
+	{
+		return ticks == 1 ? "tick" : "ticks";
 	}
 }
